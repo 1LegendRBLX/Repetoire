@@ -1,11 +1,5 @@
 {
-  "name": "repertoire",
-
-    "servePlaceIds": [
-        117270607332326
-    ],
-
-
+  "name": "Repertoire",
   "tree": {
     "$className": "DataModel",
 
