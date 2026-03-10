@@ -8,10 +8,13 @@ type AccentComponent = AccentComponent.AccentComponent
 local SceneComponent = {}
 SceneComponent.__index = SceneComponent
 
-export type SceneComponent = typeof(setmetatable({} :: {
-	AccentComponents: { AccentComponent },
-	SequenceComponents: { SequenceComponent },
-}, SceneComponent))
+export type SceneComponent = typeof(setmetatable(
+	{} :: {
+		AccentComponents: { AccentComponent },
+		SequenceComponents: { SequenceComponent },
+	},
+	SceneComponent
+))
 
 function SceneComponent.new(): SceneComponent
 	return setmetatable({
@@ -30,7 +33,7 @@ function SceneComponent.Cleanup(self: SceneComponent)
 	for _, Sequence in self.SequenceComponents do
 		(Sequence :: SequenceComponent):Destroy()
 	end
-	
+
 	for _, Accent in self.AccentComponents do
 		Accent:Destroy()
 	end
@@ -38,9 +41,9 @@ end
 
 function SceneComponent.Destroy(self: SceneComponent)
 	self:Cleanup()
-	
-	table.clear(self::any)
-	setmetatable(self::any, nil)
+
+	table.clear(self :: any)
+	setmetatable(self :: any, nil)
 end
 
 return {

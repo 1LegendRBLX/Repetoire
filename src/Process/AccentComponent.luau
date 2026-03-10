@@ -1,4 +1,11 @@
 --!strict
+
+--[[
+	possible future improvements:
+		- global Accent scheduler (less threads)
+		- remove task.delay() timers and switch to an _activeClones registry [store expire time]
+]]
+
 local Root = script.Parent.Parent.Parent
 
 local Config = require("../Config")
@@ -11,10 +18,10 @@ AccentComponent.__index = AccentComponent
 local Builder = {}
 Builder.__index = Builder
 
-type Handler<P> = (Instance, P) -> ...any?
+type Handler<T, P> = (T, P) -> ...any?
 
-export type BuilderConfig<T> = {
-	Handler: Handler<T>,
+export type BuilderConfig<T, P> = {
+	Handler: Handler<T, P>,
 	Props: T,
 	Connection: Signal.Connection?,
 }
@@ -32,28 +39,30 @@ export type AccentComponent = typeof(setmetatable(
 
 		CloneStorage: { [Instance]: true },
 
-		_actions: { [Handler<any>]: BuilderConfig<any> },
-		_reactions: { [Signal.Signal<any>]: { BuilderConfig<any> } },
+		_actions: { [Handler<any, any>]: BuilderConfig<any, any> },
+		_reactions: { [Signal.Signal<any>]: { BuilderConfig<any, any> } },
+		_alive: boolean,
 	},
 	AccentComponent
 ))
 
-export type Builder<T> = typeof(setmetatable(
-	{} :: {
-		Config: BuilderConfig<T>,
-		Accent: AccentComponent,
-	},
-	Builder
-))
+export type Builder<P> = {
+	new: (self: Builder<P>) -> Builder<P>,
+	Hook: (self: Builder<P>, Sig: Signal.Signal<...any>) -> Builder<P>,
+	Props: (self: Builder<P>, Props: P?) -> AccentComponent,
 
-function Builder.new<T>(Config: BuilderConfig<T>, Accent: AccentComponent): Builder<T>
+	Config: any,
+	Accent: any,
+}
+
+function Builder.new<T, P>(Config: BuilderConfig<T, P>, Accent: AccentComponent): Builder<P>
 	return setmetatable({
 		Config = Config,
 		Accent = Accent,
-	}, Builder)
+	}, Builder) :: any
 end
 
-function Builder.Hook<T>(self: Builder<T>, Sig: Signal.Signal<any>): Builder<T>
+function Builder.Hook<P>(self: Builder<P>, Sig: Signal.Signal<any>): Builder<P>
 	local Accent = self.Accent
 
 	Accent._reactions[Sig] = Accent._reactions[Sig] or {}
@@ -62,7 +71,7 @@ function Builder.Hook<T>(self: Builder<T>, Sig: Signal.Signal<any>): Builder<T>
 	return self
 end
 
-function Builder.Props<T>(self: Builder<T>, Props: T): AccentComponent
+function Builder.Props<P>(self: Builder<P>, Props: P): AccentComponent
 	self.Config.Props = Props
 	return self.Accent
 end
@@ -90,11 +99,12 @@ function AccentComponent.new(Target: Instance, Settings: any?): AccentComponent
 
 		_actions = {},
 		_reactions = {},
+		_alive = true,
 	}, AccentComponent)
 end
 
-function AccentComponent.AddAction<P>(self: AccentComponent, Handler: Handler<P>): Builder<P>
-	local ConfigData: BuilderConfig<P> = {
+function AccentComponent.AddAction<T, P>(self: AccentComponent, Handler: Handler<T, P>): Builder<P>
+	local ConfigData = {
 		Handler = Handler,
 		Connection = nil,
 		Props = nil :: any,
@@ -105,8 +115,8 @@ function AccentComponent.AddAction<P>(self: AccentComponent, Handler: Handler<P>
 	return Builder.new(ConfigData, self)
 end
 
-function AccentComponent.AddReaction<P>(self: AccentComponent, Handler: Handler<P>): Builder<P>
-	local ConfigData: BuilderConfig<P> = {
+function AccentComponent.AddReaction<T, P>(self: AccentComponent, Handler: Handler<T, P>): Builder<P>
+	local ConfigData = {
 		Handler = Handler,
 		Connection = nil,
 		Props = nil :: any,
@@ -116,6 +126,10 @@ function AccentComponent.AddReaction<P>(self: AccentComponent, Handler: Handler<
 end
 
 function AccentComponent.Spawn(self: AccentComponent, position: Vector3, parent: Instance?): Promise.Promise
+	if not self._alive then
+		return Promise.reject("Accent destroyed")
+	end
+
 	if self.Logging then
 		print("[Accent] Spawn requested")
 	end
@@ -143,6 +157,10 @@ function AccentComponent.Spawn(self: AccentComponent, position: Vector3, parent:
 				:catch(warn)
 
 			task.delay(lifetime, function()
+				if not self._alive then
+					return
+				end
+
 				if self.CloneStorage[Clone] then
 					self:Despawn(Clone)
 				end
@@ -168,6 +186,10 @@ function AccentComponent.Despawn(self: AccentComponent, Target: Instance): Promi
 			print("[Accent] Despawn reactions complete:", Target)
 		end
 
+		if not self._alive then
+			return
+		end
+
 		self.OnDespawned:Fire(Target)
 
 		if Target then
@@ -177,6 +199,23 @@ function AccentComponent.Despawn(self: AccentComponent, Target: Instance): Promi
 end
 
 function AccentComponent.Destroy(self: AccentComponent)
+	if not self._alive then
+		return
+	end
+
+	self._alive = true
+
+	for clone in self.CloneStorage do
+		if not clone then
+			continue
+		end
+		clone:Destroy()
+	end
+
+	self.OnDespawned:Destroy()
+	self.OnSpawned:Destroy()
+	self.OnTouched:Destroy()
+
 	table.clear(self :: any)
 	setmetatable(self :: any, nil)
 end
@@ -209,7 +248,7 @@ function AccentComponent._executeReactions(
 	end)
 end
 
-function AccentComponent._runAction(self: AccentComponent, Handler: Handler<any>): ...any?
+function AccentComponent._runAction(self: AccentComponent, Handler: Handler<any, any>): ...any?
 	local Data = self._actions[Handler]
 
 	if not Data then

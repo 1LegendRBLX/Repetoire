@@ -9,7 +9,7 @@ local Promise = require(Root.Promise)
 local Config = {
 	Settings = {
 		Clone = true,
-		Logging = 5,
+		Logging = false,
 		SpawnRateThreshold = 0.1,
 	},
 }
