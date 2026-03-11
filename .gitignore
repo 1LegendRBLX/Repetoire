@@ -1,2 +1,4 @@
 sourcemap.json
 /.vscode
+/Packages
+/tests
