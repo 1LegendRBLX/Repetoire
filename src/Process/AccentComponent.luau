@@ -299,6 +299,8 @@ function AccentComponent.Despawn(self: AccentComponent, Target: Instance): Promi
 		self._spawns[Target] = nil
 		Group.Remaining -= 1
 
+		Target:Destroy()
+
 		if Group.Remaining <= 0 then
 			if Group.Container then
 				Group.Container:Destroy()
