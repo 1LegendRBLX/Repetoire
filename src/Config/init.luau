@@ -131,7 +131,7 @@ Config.Reactions = {
 		local Info = (Properties and Properties.TweenInfo) and Properties.TweenInfo or TweenInfo.new(1)
 
 		return Promise.new(function(resolve)
-			local Tween: Tween?
+			local Tween: Tween
 
 			if Inst:IsA("BasePart") then
 				Tween = TweenService:Create(Inst, Info, { Size = Vector3.one * Scale })
@@ -219,6 +219,51 @@ Config.Reactions = {
 		end
 	end,
 
+	AddTrail = function(
+		Inst: BasePart,
+		Properties: {
+			ColorSequence: ColorSequence?,
+			Scale: number?,
+			Width: Vector2?,
+			Lifetime: number?,
+			FaceCamera: boolean?,
+			Texture: string?,
+		}
+	)
+		local Scale = Properties and Properties.Scale or 0.5
+		local ColorSequence = Properties and Properties.ColorSequence or ColorSequence.new(Color3.new(1, 1, 1))
+		local Width = Properties and Properties.Width or Vector2.new(1, 0.5)
+		local FaceCamera = Properties and Properties.FaceCamera or true
+		local Lifetime = Properties and Properties.Lifetime or 0.5
+		local Texture = Properties and Properties.Texture
+
+		local A0 = Instance.new("Attachment")
+		local A1 = Instance.new("Attachment")
+		local Trail = Instance.new("Trail")
+
+		A0.Parent = Inst
+		A1.Parent = Inst
+		Trail.Parent = Inst
+
+		local AOffsetSize = (Inst.Size / 2) * Scale
+		A0.Position = Vector3.one * AOffsetSize
+		A1.Position = Vector3.one * -AOffsetSize
+
+		Trail.Attachment0 = A0
+		Trail.Attachment1 = A1
+
+		Trail.FaceCamera = FaceCamera
+		Trail.Color = ColorSequence
+		Trail.Lifetime = Lifetime
+		Trail.WidthScale = NumberSequence.new({
+			NumberSequenceKeypoint.new(0, Width.X),
+			NumberSequenceKeypoint.new(1, Width.Y),
+		})
+		if Texture then
+			Trail.Texture = Texture
+		end
+	end,
+
 	RandomScale = function(
 		Inst: Instance,
 		Properties: { MinScale: number, MaxScale: number, Weight: number?, UseMultiplication: boolean? }
@@ -248,6 +293,7 @@ Config.Reactions = {
 	Force = function(
 		Inst: Instance,
 		Properties: {
+			ForceType: ForceMod.ForceTypes?,
 			Velocity: number?,
 			Direction: Vector3?,
 			RelativeTo: Enum.ActuatorRelativeTo?,
